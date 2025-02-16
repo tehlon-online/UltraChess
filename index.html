@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultra Chess</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Center the entire content */
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #chessboard-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #chessboard {
+            display: grid;
+            grid-template-columns: repeat(16, 1fr); /* Make the columns responsive */
+            grid-template-rows: repeat(16, 1fr); /* Make the rows responsive */
+            gap: 0;
+            border: 2px solid #333;
+            width: 80vmin; /* Responsive width */
+            height: 80vmin; /* Responsive height */
+        }
+
+        .square {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4vmin; /* Responsive font size */
+            font-weight: bold;
+        }
+
+        .square.light {
+            background-color: #f0d9b5;
+        }
+
+        .square.dark {
+            background-color: #b58863;
+        }
+
+        .white-piece {
+            color: #d9d9d9;
+            text-shadow: 1px 1px 2px #000000;
+        }
+
+        .black-piece {
+            color: #333333;
+        }
+
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* Align controls to the center */
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+
+        #player-turn {
+            margin-top: 20px;
+            font-size: 24px;
+            text-align: center; /* Align text to the center */
+        }
+    </style>
+</head>
+<body>
+    <div id="chessboard-container">
+        <div id="chessboard"></div>
+        <div id="controls">
+            <div id="player-turn">White's Turn</div>
+            <div>
+                <button id="reset-button">Reset Game</button>
+                <button id="undo-button">Undo Turn</button>
+                <button id="save-button">Save</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        const chessboard = document.getElementById('chessboard');
+        const playerTurn = document.getElementById('player-turn');
+        let turn = 'white';
+        let moveHistory = [];
+
+        const initialPieces = {
+            // White Pieces (bottom left corner) with duplication
+            '0,15': '♖', '1,15': '♖', '2,15': '♘', '3,15': '♘', '4,15': '♗', '5,15': '♗', '6,15': '♕', '7,15': '♕',
+            '8,15': '♔', '9,15': '♔', '10,15': '♗', '11,15': '♗', '12,15': '♘', '13,15': '♘', '14,15': '♖', '15,15': '♖',
+            '0,14': '♖', '1,14': '♖', '2,14': '♘', '3,14': '♘', '4,14': '♗', '5,14': '♗', '6,14': '♕', '7,14': '♕',
+            '8,14': '♔', '9,14': '♔', '10,14': '♗', '11,14': '♗', '12,14': '♘', '13,14': '♘', '14,14': '♖', '15,14': '♖',
+            '0,13': '♙', '1,13': '♙', '2,13': '♙', '3,13': '♙', '4,13': '♙', '5,13': '♙', '6,13': '♙', '7,13': '♙',
+            '8,13': '♙', '9,13': '♙', '10,13': '♙', '11,13': '♙', '12,13': '♙', '13,13': '♙', '14,13': '♙', '15,13': '♙',
+            // Black Pieces (upper left corner) with duplication
+            '0,0': '♜', '1,0': '♜', '2,0': '♞', '3,0': '♞', '4,0': '♝', '5,0': '♝', '6,0': '♛', '7,0': '♛',
+            '8,0': '♚', '9,0': '♚', '10,0': '♝', '11,0': '♝', '12,0': '♞', '13,0': '♞', '14,0': '♜', '15,0': '♜',
+            '0,1': '♜', '1,1': '♜', '2,1': '♞', '3,1': '♞', '4,1': '♝', '5,1': '♝', '6,1': '♛', '7,1': '♛',
+            '8,1': '♚', '9,1': '♚', '10,1': '♝', '11,1': '♝', '12,1': '♞', '13,1': '♞', '14,1': '♜', '15,1': '♜',
+            '0,2': '♟', '1,2': '♟', '2,2': '♟', '3,2': '♟', '4,2': '♟', '5,2': '♟', '6,2': '♟', '7,2': '♟',
+            '8,2': '♟', '9,2': '♟', '10,2': '♟', '11,2': '♟', '12,2': '♟', '13,2': '♟', '14,2': '♟', '15,2': '♟'
+        };
+
+        function initializeChessboard() {
+            chessboard.innerHTML = ''; // Clear the chessboard
+            for (let row = 0; row < 16; row++) {
+                for (let col = 0; col < 16; col++) {
+                    const square = document.createElement('div');
+                    square.classList.add('square', (row + col) % 2 === 0 ? 'light' : 'dark');
+                    square.id = `${col},${row}`;
+                    if (initialPieces[`${col},${row}`]) {
+                        square.textContent = initialPieces[`${col},${row}`];
+                        if (row >= 13) {
+                            square.classList.add('white-piece');
+                        } else if (row <= 2) {
+                            square.classList.add('black-piece');
+                        }
+                        square.draggable = true;
+                    }
+                    chessboard.appendChild(square);
+                }
+            }
+            moveHistory = [];
+            turn = 'white';
+            playerTurn.textContent = "White's Turn";
+            document.getElementById('undo-button').disabled = true; // Disable undo button initially
+        }
+
+        function saveGameState() {
+            const boardState = {};
+            for (let row = 0; row < 16; row++) {
+                for (let col = 0; col < 16; col++) {
+                    const square = document.getElementById(`${col},${row}`);
+                    boardState[`${col},${row}`] = {
+                        piece: square.textContent,
+                        pieceClass: square.classList.contains('white-piece') ? 'white-piece' : square.classList.contains('black-piece') ? 'black-piece' : ''
+                    };
+                }
+            }
+            localStorage.setItem('chessBoardState', JSON.stringify(boardState));
+            localStorage.setItem('chessTurn', turn);
+            alert("Game saved!");
+        }
+
+        function loadGameState() {
+            const savedBoardState = localStorage.getItem('chessBoardState');
+            const savedTurn = localStorage.getItem('chessTurn');
+            if (savedBoardState && savedTurn) {
+                const boardState = JSON.parse(savedBoardState);
+                for (let row = 0; row < 16; row++) {
+                    for (let col = 0; col < 16; col++) {
+                        const square = document.getElementById(`${col},${row}`);
+                        const state = boardState[`${col},${row}`];
+                        square.textContent = state.piece;
+                        square.classList.remove('white-piece', 'black-piece');
+                        if (state.pieceClass) {
+                            square.classList.add(state.pieceClass);
+                            square.draggable = true;
+                        } else {
+                            square.draggable = false;
+                        }
+                    }
+                }
+                turn = savedTurn;
+                playerTurn.textContent = `${turn.charAt(0).toUpperCase() + turn.slice(1)}'s Turn`;
+                document.getElementById('undo-button').disabled = moveHistory.length === 0;
+            }
+        }
+
+        initializeChessboard();
+        loadGameState();
+
+        // Drag and Drop Functionality
+        let draggedPiece = null;
+        let startPosition = null;
+
+        chessboard.addEventListener('dragstart', (e) => {
+            const pieceColor = e.target.classList.contains('white-piece') ? 'white' : 'black';
+            if (pieceColor !== turn) {
+                e.preventDefault();
+                return;
+            }
+            draggedPiece = e.target;
+            startPosition = e.target.id;
+            e.dataTransfer.setData('text/plain', e.target.id);
+        });
+
+        chessboard.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        chessboard.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const targetSquare = e.target;
+
+            // Ensure the move is valid (basic validation for now)
+            const [startX, startY] = startPosition.split(',').map(Number);
+            const [endX, endY] = targetSquare.id.split(',').map(Number);
+
+            if (isValidMove(startX, startY, endX, endY, draggedPiece.textContent)) {
+                const pieceClass = draggedPiece.classList.contains('white-piece') ? 'white-piece' : 'black-piece';
+                const previousPiece = targetSquare.textContent;
+                const previousPieceClass = targetSquare.classList.contains('white-piece') ? 'white-piece' : targetSquare.classList.contains('black-piece') ? 'black-piece' : '';
+
+                targetSquare.textContent = draggedPiece.textContent;
+                targetSquare.classList.add(pieceClass);
+                targetSquare.classList.remove(pieceClass === 'white-piece' ? 'black-piece' : 'white-piece');
+                draggedPiece.textContent = '';
+                draggedPiece.draggable = false;
+                targetSquare.draggable = true;
+
+                // Record the move in history
+                moveHistory.push({
+                    startPosition: startPosition,
+                    endPosition: targetSquare.id,
+                    piece: targetSquare.textContent,
+                    pieceClass: pieceClass,
+                    previousPiece: previousPiece,
+                    previousPieceClass: previousPieceClass
+                });
+
+                // Enable undo button after a move
+                document.getElementById('undo-button').disabled = false;
+
+                // Switch turn
+                turn = turn === 'white' ? 'black' : 'white';
+                playerTurn.textContent = `${turn.charAt(0).toUpperCase() + turn.slice(1)}'s Turn`;
+            }
+        });
+
+        // Basic move validation function
+        function isValidMove(startX, startY, endX, endY, piece) {
+            // Implement basic move validation based on piece type
+            switch (piece) {
+                case '♙': // White pawn
+                case '♟': // Black pawn
+                    return isValidPawnMove(startX, startY, endX, endY, piece);
+                case '♖': // Rook
+                case '♜':
+                    return isValidRookMove(startX, startY, endX, endY);
+                case '♘': // Knight
+                case '♞':
+                    return isValidKnightMove(startX, startY, endX, endY);
+                case '♗': // Bishop
+                case '♝':
+                    return isValidBishopMove(startX, startY, endX, endY);
+                case '♕': // Queen
+                case '♛':
+                    return isValidQueenMove(startX, startY, endX, endY);
+                case '♔': // King
+                case '♚':
+                    return isValidKingMove(startX, startY, endX, endY);
+                default:
+                    return false;
+            }
+        }
+
+        function isValidPawnMove(startX, startY, endX, endY, piece) {
+            const direction = piece === '♙' ? -1 : 1;
+            const startRow = piece === '♙' ? 13 : 2;
+            const opponentPieceClass = piece === '♙' ? 'black-piece' : 'white-piece';
+
+            // Move forward
+            if (startX === endX) {
+                // Single step forward
+                if (startY + direction === endY && !document.getElementById(`${endX},${endY}`).textContent) return true;
+                // Double step forward from starting position
+                if (startY === startRow && startY + 2 * direction === endY && !document.getElementById(`${endX},${startY + direction}`).textContent && !document.getElementById(`${endX},${endY}`).textContent) return true;
+            }
+            // Capture diagonally
+            else if (Math.abs(startX - endX) === 1 && startY + direction === endY) {
+                if (document.getElementById(`${endX},${endY}`).classList.contains(opponentPieceClass)) return true;
+            }
+            return false;
+        }
+
+        function isPathClear(startX, startY, endX, endY) {
+            const deltaX = Math.sign(endX - startX);
+            const deltaY = Math.sign(endY - startY);
+            let x = startX + deltaX;
+            let y = startY + deltaY;
+            while (x !== endX || y !== endY) {
+                if (document.getElementById(`${x},${y}`).textContent) return false;
+                x += deltaX;
+                y += deltaY;
+            }
+            return true;
+        }
+
+        function isValidRookMove(startX, startY, endX, endY) {
+            return (startX === endX || startY === endY) && isPathClear(startX, startY, endX, endY);
+        }
+
+        function isValidKnightMove(startX, startY, endX, endY) {
+            return (Math.abs(startX - endX) === 1 && Math.abs(startY - endY) === 2) ||
+                   (Math.abs(startX - endX) === 2 && Math.abs(startY - endY) === 1);
+        }
+
+        function isValidBishopMove(startX, startY, endX, endY) {
+            return Math.abs(startX - endX) === Math.abs(startY - endY) && isPathClear(startX, startY, endX, endY);
+        }
+
+        function isValidQueenMove(startX, startY, endX, endY) {
+            return isValidRookMove(startX, startY, endX, endY) || isValidBishopMove(startX, startY, endX, endY);
+        }
+
+        function isValidKingMove(startX, startY, endX, endY) {
+            return Math.abs(startX - endX) <= 1 && Math.abs(startY - endY) <= 1;
+        }
+
+                // Reset game functionality
+        document.getElementById('reset-button').addEventListener('click', () => {
+            const confirmation = document.createElement('div');
+            confirmation.id = 'confirmation-box';
+            confirmation.style.position = 'fixed';
+            confirmation.style.top = '50%';
+            confirmation.style.left = '50%';
+            confirmation.style.transform = 'translate(-50%, -50%)';
+            confirmation.style.backgroundColor = '#fff';
+            confirmation.style.border = '2px solid #333';
+            confirmation.style.padding = '20px';
+            confirmation.style.zIndex = '1000';
+            confirmation.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.5)';
+            confirmation.innerHTML = `
+                <p>Are you sure?</p>
+                <button id="confirmation-ok">OK</button>
+                <button id="confirmation-cancel">Cancel</button>
+            `;
+            document.body.appendChild(confirmation);
+
+            document.getElementById('confirmation-ok').addEventListener('click', () => {
+                initializeChessboard();
+                document.body.removeChild(confirmation);
+            });
+
+            document.getElementById('confirmation-cancel').addEventListener('click', () => {
+                document.body.removeChild(confirmation);
+            });
+        });
+
+        // Undo turn functionality
+        document.getElementById('undo-button').addEventListener('click', () => {
+            if (moveHistory.length > 0) {
+                const lastMove = moveHistory.pop();
+                const startSquare = document.getElementById(lastMove.startPosition);
+                const endSquare = document.getElementById(lastMove.endPosition);
+
+                // Restore the pieces to their previous positions
+                startSquare.textContent = lastMove.piece;
+                startSquare.classList.add(lastMove.pieceClass);
+                startSquare.classList.remove(lastMove.pieceClass === 'white-piece' ? 'black-piece' : 'white-piece');
+                startSquare.draggable = true;
+
+                endSquare.textContent = lastMove.previousPiece;
+                if (lastMove.previousPiece) {
+                    endSquare.classList.add(lastMove.previousPieceClass);
+                    endSquare.classList.remove(lastMove.previousPieceClass === 'white-piece' ? 'black-piece' : 'white-piece');
+                    endSquare.draggable = true;
+                } else {
+                    endSquare.classList.remove('white-piece', 'black-piece');
+                    endSquare.draggable = false;
+                }
+
+                // Switch turn back
+                turn = turn === 'white' ? 'black' : 'white';
+                playerTurn.textContent = `${turn.charAt(0).toUpperCase() + turn.slice(1)}'s Turn`;
+
+                // Disable undo button if no more moves to undo
+                if (moveHistory.length === 0) {
+                    document.getElementById('undo-button').disabled = true;
+                }
+            }
+        });
+
+        // Save game functionality
+        document.getElementById('save-button').addEventListener('click', () => {
+            if (turn === 'white' || turn === 'black') {
+                saveGameState();
+            } else {
+                alert("Only the current player can save the game.");
+            }
+        });
+    </script>
+</body>
+</html>
+``` ▋
